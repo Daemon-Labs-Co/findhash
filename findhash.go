@@ -45,7 +45,8 @@ func main() {
 	args := flag.Args()
 
 	var targetHash string
-	var targetSize int64 = -1 // -1 means unknown: no size pre-filter
+	var targetSize int64 = -1   // -1 means unknown: no size pre-filter
+	var refInfo os.FileInfo     // non-nil in reference-file mode; used to skip the file itself
 	searchRoot := "../../.."
 
 	if *hashFlag != "" {
@@ -71,6 +72,7 @@ func main() {
 		}
 		targetHash = h
 		targetSize = info.Size()
+		refInfo = info
 		if len(args) >= 2 {
 			searchRoot = args[1]
 		}
@@ -83,6 +85,12 @@ func main() {
 		}
 		if !d.Type().IsRegular() {
 			return nil
+		}
+		// Don't report the reference file as a match against itself.
+		if refInfo != nil {
+			if ci, err := d.Info(); err == nil && os.SameFile(refInfo, ci) {
+				return nil
+			}
 		}
 		// Cheap size pre-filter before opening/hashing anything.
 		if targetSize >= 0 {
