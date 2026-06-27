@@ -47,6 +47,7 @@ func main() {
 	var targetHash string
 	var targetSize int64 = -1   // -1 means unknown: no size pre-filter
 	var refInfo os.FileInfo     // non-nil in reference-file mode; used to skip the file itself
+	refName := ""               // reference filename, empty in -hash mode
 	searchRoot := "../../.."
 
 	if *hashFlag != "" {
@@ -73,12 +74,13 @@ func main() {
 		targetHash = h
 		targetSize = info.Size()
 		refInfo = info
+		refName = ref
 		if len(args) >= 2 {
 			searchRoot = args[1]
 		}
 	}
 
-	found := false
+	var matches []string
 	_ = filepath.WalkDir(searchRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip unreadable entries, keep walking
@@ -104,15 +106,24 @@ func main() {
 			return nil
 		}
 		if h == targetHash {
-			fmt.Printf("MATCH: %s\n", path)
-			found = true
+			matches = append(matches, path)
 		}
 		return nil
 	})
 
-	if found {
-		os.Exit(0)
+	// Lead-in describes what we searched for and where.
+	var lead string
+	if refName != "" {
+		lead = fmt.Sprintf("%s has a hash of %s, searching directory %s", refName, targetHash, searchRoot)
+	} else {
+		lead = fmt.Sprintf("searching directory %s for hash %s", searchRoot, targetHash)
 	}
-	fmt.Fprintf(os.Stderr, "No file matching %s found under %s\n", targetHash, searchRoot)
-	os.Exit(1)
+
+	if len(matches) == 0 {
+		fmt.Printf("%s, no files found.\n", lead)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s, located a copy here:\n%s\n", lead, strings.Join(matches, ",\n"))
+	os.Exit(0)
 }
